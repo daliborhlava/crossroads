@@ -138,7 +138,7 @@ async function openEditor() {
   elements.overlay.hidden = false;
   elements.textarea.value = "";
   elements.textarea.hidden = false;
-  elements.monacoHost.hidden = false;
+  elements.monacoHost.hidden = true;
 
   const response = await fetch("/api/config/raw");
   const raw = await response.text();
@@ -148,6 +148,7 @@ async function openEditor() {
     await ensureMonaco();
     if (state.monaco) {
       state.monaco.setValue(raw);
+      elements.monacoHost.hidden = false;
       elements.textarea.hidden = true;
     }
     elements.editorStatus.textContent = "";
@@ -232,14 +233,53 @@ function ensureMonaco() {
 }
 
 function wireEvents() {
+  elements.overlay.hidden = true;
+
   elements.search.addEventListener("input", (event) => {
     applyFilter(event.target.value);
   });
 
   elements.search.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      const firstVisible = state.cards.find(({ card }) => !card.hidden);
+      if (firstVisible) {
+        event.preventDefault();
+        firstVisible.card.focus();
+      }
+      return;
+    }
     if (event.key === "Enter") {
       const firstVisible = state.cards.find(({ card }) => !card.hidden);
       if (firstVisible) firstVisible.card.click();
+    }
+  });
+
+  elements.sections.addEventListener("keydown", (event) => {
+    if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(event.key)) {
+      return;
+    }
+    const visibleCards = state.cards
+      .map(({ card }) => card)
+      .filter((card) => !card.hidden);
+    if (!visibleCards.length) return;
+
+    const current = document.activeElement;
+    const currentIndex = visibleCards.indexOf(current);
+    if (currentIndex === -1) return;
+
+    event.preventDefault();
+    const delta = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1 : 1;
+    const nextIndex = (currentIndex + delta + visibleCards.length) % visibleCards.length;
+    visibleCards[nextIndex].focus();
+  });
+
+  elements.sections.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" && event.shiftKey) {
+      const card = document.activeElement;
+      if (card && card.classList.contains("card")) {
+        event.preventDefault();
+        focusSearch();
+      }
     }
   });
 
@@ -258,8 +298,15 @@ function wireEvents() {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "/" && elements.overlay.hidden) {
+      event.preventDefault();
+      focusSearch();
+    }
     if (event.key === "Escape" && !elements.overlay.hidden) {
       closeEditor();
+    }
+    if (event.key === "Escape" && elements.overlay.hidden) {
+      focusSearch();
     }
   });
 }
