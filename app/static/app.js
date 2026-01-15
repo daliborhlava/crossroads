@@ -2,6 +2,7 @@ const state = {
   config: null,
   cards: [],
   filteredCards: [],
+  sections: [],
   monaco: null,
   monacoReady: false,
   monacoLoading: null,
@@ -32,6 +33,45 @@ async function fetchConfig() {
   renderPage();
 }
 
+const COLLAPSE_KEY = "crossroads:collapsed";
+
+function getCollapsedState() {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSE_KEY)) || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function setCollapsedState(nextState) {
+  localStorage.setItem(COLLAPSE_KEY, JSON.stringify(nextState));
+}
+
+function isSectionCollapsed(name) {
+  const stateMap = getCollapsedState();
+  if (!(name in stateMap)) return true;
+  return Boolean(stateMap[name]);
+}
+
+function updateSectionCollapsed(name, collapsed) {
+  const stateMap = getCollapsedState();
+  stateMap[name] = collapsed;
+  setCollapsedState(stateMap);
+}
+
+function setSectionCollapsed(wrapper, collapsed) {
+  wrapper.classList.toggle("section--collapsed", collapsed);
+  const toggle = wrapper.querySelector(".section__toggle");
+  const icon = toggle?.querySelector("i");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", (!collapsed).toString());
+    toggle.title = collapsed ? "Expand section" : "Collapse section";
+  }
+  if (icon) {
+    icon.className = collapsed ? "mdi mdi-chevron-down" : "mdi mdi-chevron-up";
+  }
+}
+
 function renderPage() {
   const { title, subtitle, searchPlaceholder, sections = [] } = state.config || {};
   if (title) elements.title.textContent = title;
@@ -40,6 +80,7 @@ function renderPage() {
 
   elements.sections.innerHTML = "";
   state.cards = [];
+  state.sections = [];
 
   sections.forEach((section, sectionIndex) => {
     const wrapper = document.createElement("section");
@@ -50,12 +91,22 @@ function renderPage() {
     header.className = "section__header";
 
     const icon = document.createElement("i");
-    icon.className = `mdi ${section.icon || "mdi-atom"}`;
+    icon.className = `mdi ${section.icon || "mdi-atom"} section__icon`;
 
     const titleEl = document.createElement("h2");
     titleEl.textContent = section.name || "Untitled";
 
-    header.append(icon, titleEl);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "section__toggle";
+    toggle.innerHTML = "<i class=\"mdi mdi-chevron-down\"></i>";
+    toggle.addEventListener("click", () => {
+      const collapsed = !wrapper.classList.contains("section--collapsed");
+      setSectionCollapsed(wrapper, collapsed);
+      updateSectionCollapsed(section.name || "", collapsed);
+    });
+
+    header.append(icon, titleEl, toggle);
     wrapper.append(header);
 
     const grid = document.createElement("div");
@@ -67,6 +118,7 @@ function renderPage() {
       card.href = item.url || "#";
       card.target = "_blank";
       card.rel = "noreferrer";
+      card.title = item.url || "";
       card.dataset.search = [item.title, item.url, item.description, section.name]
         .filter(Boolean)
         .join(" ")
@@ -82,16 +134,13 @@ function renderPage() {
       const titleText = document.createElement("div");
       titleText.className = "card__title";
       titleText.textContent = item.title || "Untitled";
-      const meta = document.createElement("div");
-      meta.className = "card__meta";
-      meta.textContent = item.url || "";
-      textWrap.append(titleText, meta);
+      textWrap.append(titleText);
 
       if (item.description) {
-        const desc = document.createElement("div");
-        desc.className = "card__desc";
-        desc.textContent = item.description;
-        textWrap.append(desc);
+        const meta = document.createElement("div");
+        meta.className = "card__meta";
+        meta.textContent = item.description;
+        textWrap.append(meta);
       }
 
       card.append(iconWrap, textWrap);
@@ -103,6 +152,10 @@ function renderPage() {
     wrapper.append(grid);
     wrapper.style.animationDelay = `${Math.min(sectionIndex * 0.05, 0.4)}s`;
     elements.sections.append(wrapper);
+    state.sections.push({ name: section.name || "", wrapper });
+
+    const collapsed = isSectionCollapsed(section.name || "");
+    setSectionCollapsed(wrapper, collapsed);
   });
 
   applyFilter("");
@@ -123,10 +176,41 @@ function applyFilter(value) {
 
   sectionCounts.forEach((count, section) => {
     section.hidden = count === 0;
+    if (query) {
+      setSectionCollapsed(section, false);
+    } else {
+      const name = section.dataset.section || "";
+      setSectionCollapsed(section, isSectionCollapsed(name));
+    }
   });
 
   elements.empty.hidden = visible !== 0;
   elements.count.textContent = `${visible} result${visible === 1 ? "" : "s"}`;
+}
+
+function getFocusableCards() {
+  return state.cards
+    .filter(
+      ({ card, section }) =>
+        !card.hidden && !section.classList.contains("section--collapsed")
+    )
+    .map(({ card }) => card);
+}
+
+function ensureFirstSectionExpanded() {
+  const candidate = state.sections.find(({ wrapper }) => {
+    if (wrapper.hidden || wrapper.classList.contains("section--collapsed")) {
+      const hasVisibleCard = [...wrapper.querySelectorAll(".card")].some(
+        (card) => !card.hidden
+      );
+      return hasVisibleCard;
+    }
+    return false;
+  });
+  if (candidate) {
+    setSectionCollapsed(candidate.wrapper, false);
+    updateSectionCollapsed(candidate.name, false);
+  }
 }
 
 function focusSearch() {
@@ -153,7 +237,7 @@ async function openEditor() {
     }
     elements.editorStatus.textContent = "";
   } catch (error) {
-    elements.editorStatus.textContent = "Monaco failed to load, using plain editor.";
+    elements.editorStatus.textContent = `Monaco failed to load: ${error.message}`;
   }
 }
 
@@ -190,7 +274,19 @@ function ensureMonaco() {
   if (state.monacoLoading) return state.monacoLoading;
 
   state.monacoLoading = new Promise((resolve, reject) => {
-    if (window.monaco) {
+    window.MonacoEnvironment = {
+      getWorkerUrl() {
+        const workerUrl =
+          "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/base/worker/workerMain.js";
+        const blob = [
+          "self.MonacoEnvironment={baseUrl:'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/'};",
+          `importScripts('${workerUrl}');`,
+        ].join("");
+        return `data:text/javascript;charset=utf-8,${encodeURIComponent(blob)}`;
+      },
+    };
+
+    if (window.monaco && window.monaco.editor) {
       state.monacoReady = true;
       state.monaco = window.monaco.editor.create(elements.monacoHost, {
         value: "",
@@ -207,12 +303,20 @@ function ensureMonaco() {
     const loader = document.createElement("script");
     loader.src = "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js";
     loader.onload = () => {
+      if (!window.require) {
+        reject(new Error("Monaco loader did not expose require"));
+        return;
+      }
       window.require.config({
         paths: {
           vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs",
         },
       });
       window.require(["vs/editor/editor.main"], () => {
+        if (!window.monaco || !window.monaco.editor) {
+          reject(new Error("Monaco editor not available after load"));
+          return;
+        }
         state.monacoReady = true;
         state.monaco = window.monaco.editor.create(elements.monacoHost, {
           value: "",
@@ -225,7 +329,7 @@ function ensureMonaco() {
         resolve();
       });
     };
-    loader.onerror = () => reject(new Error("Monaco loader failed"));
+    loader.onerror = () => reject(new Error("Monaco loader failed to download"));
     document.body.append(loader);
   });
 
@@ -235,22 +339,51 @@ function ensureMonaco() {
 function wireEvents() {
   elements.overlay.hidden = true;
 
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (
+        (event.key === "Tab" || event.code === "Tab") &&
+        document.activeElement === elements.search
+      ) {
+        let focusable = getFocusableCards();
+        if (!focusable.length) {
+          ensureFirstSectionExpanded();
+          focusable = getFocusableCards();
+        }
+        if (focusable.length) {
+          event.preventDefault();
+          focusable[0].focus();
+        }
+      }
+    },
+    true
+  );
+
   elements.search.addEventListener("input", (event) => {
     applyFilter(event.target.value);
   });
 
   elements.search.addEventListener("keydown", (event) => {
-    if (event.key === "Tab") {
-      const firstVisible = state.cards.find(({ card }) => !card.hidden);
-      if (firstVisible) {
+    if (event.key === "Tab" || event.code === "Tab") {
+      let focusable = getFocusableCards();
+      if (!focusable.length) {
+        ensureFirstSectionExpanded();
+        focusable = getFocusableCards();
+      }
+      if (focusable.length) {
         event.preventDefault();
-        firstVisible.card.focus();
+        focusable[0].focus();
       }
       return;
     }
     if (event.key === "Enter") {
-      const firstVisible = state.cards.find(({ card }) => !card.hidden);
-      if (firstVisible) firstVisible.card.click();
+      let focusable = getFocusableCards();
+      if (!focusable.length) {
+        ensureFirstSectionExpanded();
+        focusable = getFocusableCards();
+      }
+      if (focusable.length) focusable[0].click();
     }
   });
 
@@ -258,9 +391,7 @@ function wireEvents() {
     if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(event.key)) {
       return;
     }
-    const visibleCards = state.cards
-      .map(({ card }) => card)
-      .filter((card) => !card.hidden);
+    const visibleCards = getFocusableCards();
     if (!visibleCards.length) return;
 
     const current = document.activeElement;
