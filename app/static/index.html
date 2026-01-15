@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Crossroads</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="background">
+      <div class="glow glow--one"></div>
+      <div class="glow glow--two"></div>
+      <div class="grid"></div>
+    </div>
+
+    <header class="hero">
+      <div class="hero__title">
+        <div class="hero__badge">Crossroads</div>
+        <h1 id="page-title">Crossroads</h1>
+        <p id="page-subtitle">Launch everything in a heartbeat.</p>
+      </div>
+      <div class="hero__actions">
+        <div class="search">
+          <i class="mdi mdi-magnify"></i>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search services, endpoints, and tools"
+            autocomplete="off"
+          />
+          <button id="clear-search" type="button" aria-label="Clear search">
+            <i class="mdi mdi-close-circle"></i>
+          </button>
+        </div>
+        <div class="hero__meta">
+          <span id="result-count">0 results</span>
+          <button id="edit-config" type="button">Edit config</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div id="sections" class="sections"></div>
+      <div id="empty-state" class="empty" hidden>
+        <div class="empty__icon"><i class="mdi mdi-radar"></i></div>
+        <h2>No matches yet</h2>
+        <p>Try another keyword or clear the filter to see everything again.</p>
+      </div>
+    </main>
+
+    <div id="editor-overlay" class="editor" hidden>
+      <div class="editor__panel">
+        <div class="editor__header">
+          <h2>Config editor</h2>
+          <div class="editor__actions">
+            <button id="cancel-edit" type="button" class="ghost">Close</button>
+            <button id="save-config" type="button">Save changes</button>
+          </div>
+        </div>
+        <div class="editor__body">
+          <div id="monaco" class="editor__monaco"></div>
+          <textarea id="config-text" class="editor__textarea"></textarea>
+        </div>
+        <div id="editor-status" class="editor__status"></div>
+      </div>
+    </div>
+
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>

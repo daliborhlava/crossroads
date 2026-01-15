@@ -1,0 +1,10 @@
+[project]
+name = "crossroads"
+version = "0.1.0"
+description = "Crossroads landing page"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.112.2",
+  "uvicorn[standard]==0.30.6",
+  "PyYAML==6.0.2",
+]

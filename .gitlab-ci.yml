@@ -1,0 +1,56 @@
+default:
+  tags:
+    - slave
+
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    # Deployment directory structure:
+    # /home/merlin/prod/crossroads/  <-- Deployment root
+    #   ├── build/                   <-- Code rsynced here, docker build context
+    #   └── overlay/                 <-- Will copy its contents to build/ on each build
+    - cd /home/merlin/prod/crossroads/build
+    - CWD=$(pwd)
+    - echo "Copying latest code..."
+    # Rsync current project dir to build dir, excluding git.
+    # --delete ensures deleted files in repo are removed from build dir.
+    - rsync -rv --delete --exclude='.git' "$CI_PROJECT_DIR/" "$CWD"
+    - echo "Copying secrets/config from overlay..."
+    - cp -rv ../overlay/. .
+    - echo "Building docker image..."
+    - docker build -t crossroads-im .
+    - echo "Done"
+
+test:
+  stage: test
+  script:
+    - echo "Running tests... (placeholder based on pyproject.toml)"
+    # - cd /home/merlin/prod/crossroads/build
+    # - docker run --rm crossroads-im python -m pytest tests/
+    - echo "Done"
+
+deploy:
+  stage: deploy
+  script:
+    - cd /home/merlin/prod/crossroads
+    - echo "Deploying application..."
+    - echo "Stopping Docker instance and cleaning up old Docker image"
+    - docker stop crossroads 2>/dev/null || true
+    - docker rm crossroads 2>/dev/null || true
+    - echo "Starting new Docker instance"
+    - |
+      docker run -d \
+        --name crossroads \
+        --restart unless-stopped \
+        -p 8743:8000 \
+        -e TZ=Europe/Prague \
+        -v $(pwd)/build/app/config.yaml:/app/app/config.yaml:ro \
+        crossroads-im
+    - echo "Done"
+  environment:
+    name: production
