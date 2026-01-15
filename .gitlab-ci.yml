@@ -49,7 +49,7 @@ deploy:
         --restart unless-stopped \
         -p 8743:8000 \
         -e TZ=Europe/Prague \
-        -v $(pwd)/build/app/config.yaml:/app/app/config.yaml:ro \
+        -v $(pwd)/build/app/config.yaml:/app/app/config.yaml:rw \
         crossroads-im
     - echo "Done"
   environment:

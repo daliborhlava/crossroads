@@ -119,7 +119,7 @@ function renderPage() {
       card.target = "_blank";
       card.rel = "noreferrer";
       card.title = item.url || "";
-      card.dataset.search = [item.title, item.url, item.description, section.name]
+      card.dataset.search = [item.title, item.url, item.description]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -162,13 +162,13 @@ function renderPage() {
 }
 
 function applyFilter(value) {
-  const query = normalize(value);
+  const query = normalize(value).trim();
   let visible = 0;
   const sectionCounts = new Map();
 
   state.cards.forEach(({ card, section }) => {
     const matches = !query || card.dataset.search.includes(query);
-    card.hidden = !matches;
+    card.classList.toggle("is-hidden", !matches);
     if (matches) visible += 1;
     const count = sectionCounts.get(section) || 0;
     sectionCounts.set(section, count + (matches ? 1 : 0));
@@ -192,7 +192,8 @@ function getFocusableCards() {
   return state.cards
     .filter(
       ({ card, section }) =>
-        !card.hidden && !section.classList.contains("section--collapsed")
+        !card.classList.contains("is-hidden") &&
+        !section.classList.contains("section--collapsed")
     )
     .map(({ card }) => card);
 }
@@ -201,7 +202,7 @@ function ensureFirstSectionExpanded() {
   const candidate = state.sections.find(({ wrapper }) => {
     if (wrapper.hidden || wrapper.classList.contains("section--collapsed")) {
       const hasVisibleCard = [...wrapper.querySelectorAll(".card")].some(
-        (card) => !card.hidden
+        (card) => !card.classList.contains("is-hidden")
       );
       return hasVisibleCard;
     }
@@ -291,7 +292,7 @@ function ensureMonaco() {
       state.monaco = window.monaco.editor.create(elements.monacoHost, {
         value: "",
         language: "yaml",
-        theme: "vs",
+        theme: "vs-dark",
         automaticLayout: true,
         minimap: { enabled: false },
         fontSize: 14,
@@ -321,7 +322,7 @@ function ensureMonaco() {
         state.monaco = window.monaco.editor.create(elements.monacoHost, {
           value: "",
           language: "yaml",
-          theme: "vs",
+          theme: "vs-dark",
           automaticLayout: true,
           minimap: { enabled: false },
           fontSize: 14,
