@@ -2,9 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir uv \
-  && uv sync --system --no-cache \
+  && uv sync --no-cache \
   && rm -rf /root/.cache
 
 COPY app /app/app
