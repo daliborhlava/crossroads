@@ -63,6 +63,7 @@ function setGroupCollapsed(name, collapsed) {
   group.collapsed = collapsed;
   group.chip.setAttribute("aria-expanded", (!collapsed).toString());
   group.chip.classList.toggle("is-collapsed", collapsed);
+  group.chip.classList.toggle("is-active", !collapsed);
   group.chip.title = collapsed ? "Expand group" : "Collapse group";
   group.itemsWrap.classList.toggle("is-collapsed", collapsed);
   const icon = group.chip.querySelector(".group-chip__chevron i");
