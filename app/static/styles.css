@@ -67,46 +67,28 @@ body {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
-  gap: 32px;
-  padding: 48px clamp(20px, 6vw, 80px) 24px;
-  align-items: end;
-}
-
-.hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(74, 163, 255, 0.2);
-  color: #8cc4ff;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  margin-bottom: 18px;
-}
-
-.hero__title h1 {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(2.6rem, 4vw, 3.6rem);
-  margin: 0 0 10px;
-  letter-spacing: -0.02em;
-}
-
-.hero__title p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 1.05rem;
-  max-width: 460px;
-}
-
-.hero__actions {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  justify-content: center;
+  padding: 40px clamp(20px, 6vw, 80px) 18px;
+  width: 100%;
+}
+
+.hero__bar {
+  width: 100%;
+  position: relative;
+}
+
+.hero__logo {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #d5e6ff;
+  text-transform: none;
+  font-size: 1.4rem;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .search {
@@ -119,6 +101,9 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
 }
 
 .search i {
@@ -145,16 +130,19 @@ body {
   padding: 0;
 }
 
-.hero__meta {
+.meta-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin: 26px 0 0;
   color: var(--muted);
   font-size: 0.95rem;
+  border-top: 1px solid rgba(74, 163, 255, 0.12);
+  padding-top: 18px;
 }
 
-.hero__meta button,
+.meta-row button,
 .editor__actions button,
 .editor__actions .ghost {
   padding: 8px 16px;
@@ -167,7 +155,7 @@ body {
   transition: transform var(--transition), box-shadow var(--transition);
 }
 
-.hero__meta button:hover,
+.meta-row button:hover,
 .editor__actions button:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 20px rgba(14, 106, 92, 0.22);
@@ -416,11 +404,17 @@ main {
 
 @media (max-width: 960px) {
   .hero {
-    grid-template-columns: 1fr;
+    justify-content: stretch;
   }
 
-  .hero__actions {
-    order: 2;
+  .hero__bar {
+    display: grid;
+    gap: 12px;
+  }
+
+  .hero__logo {
+    position: static;
+    transform: none;
   }
 }
 

@@ -9,8 +9,6 @@ const state = {
 };
 
 const elements = {
-  title: document.getElementById("page-title"),
-  subtitle: document.getElementById("page-subtitle"),
   search: document.getElementById("search-input"),
   clear: document.getElementById("clear-search"),
   sections: document.getElementById("sections"),
@@ -75,18 +73,9 @@ function setGroupCollapsed(name, collapsed) {
   });
 }
 
-function collapseOtherGroups(activeName) {
-  state.groups.forEach((group, name) => {
-    if (name !== activeName && !group.collapsed) {
-      setGroupCollapsed(name, true);
-    }
-  });
-}
 
 function renderPage() {
-  const { title, subtitle, searchPlaceholder, sections = [] } = state.config || {};
-  if (title) elements.title.textContent = title;
-  if (subtitle) elements.subtitle.textContent = subtitle;
+  const { searchPlaceholder, sections = [] } = state.config || {};
   if (searchPlaceholder) elements.search.placeholder = searchPlaceholder;
 
   elements.sections.innerHTML = "";
@@ -138,9 +127,6 @@ function renderPage() {
     chip.addEventListener("click", () => {
       const nextCollapsed = !group.collapsed;
       setGroupCollapsed(name, nextCollapsed);
-      if (!nextCollapsed) {
-        collapseOtherGroups(name);
-      }
     });
 
     (section.items || []).forEach((item, index) => {
@@ -218,8 +204,14 @@ function applyFilter(value) {
   state.groups.forEach((group, name) => {
     const count = groupCounts.get(name) || 0;
     if (query) {
-      group.chip.hidden = count === 0;
-      group.itemsWrap.hidden = count === 0;
+      group.chip.hidden = false;
+      if (count > 0) {
+        setGroupCollapsed(name, false);
+        group.itemsWrap.hidden = false;
+      } else {
+        setGroupCollapsed(name, true);
+        group.itemsWrap.hidden = true;
+      }
       group.items.forEach((card) => {
         if (!card.classList.contains("is-hidden")) {
           card.classList.remove("is-collapsed");
