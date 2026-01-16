@@ -27,6 +27,26 @@ const elements = {
 
 const normalize = (value) => (value || "").toString().toLowerCase();
 
+function getTokens(value) {
+  return normalize(value)
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function getItemKeywords(item) {
+  const raw = item.keyword ?? item.keywords;
+  if (Array.isArray(raw)) {
+    return raw.map((entry) => normalize(entry)).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw
+      .split(/[, ]+/)
+      .map((entry) => normalize(entry))
+      .filter(Boolean);
+  }
+  return [];
+}
+
 async function fetchConfig() {
   const response = await fetch("/api/config");
   state.config = await response.json();
@@ -119,7 +139,9 @@ function renderPage() {
       card.target = "_blank";
       card.rel = "noreferrer";
       card.title = item.url || "";
-      card.dataset.search = [item.title, item.url, item.description]
+      const keywords = getItemKeywords(item);
+      card.dataset.keywords = keywords.join(" ");
+      card.dataset.search = [item.title, item.url, item.description, keywords.join(" ")]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -146,7 +168,7 @@ function renderPage() {
       card.append(iconWrap, textWrap);
       card.style.animationDelay = `${Math.min(index * 0.03, 0.4)}s`;
       grid.append(card);
-      state.cards.push({ card, section: wrapper });
+      state.cards.push({ card, section: wrapper, item });
     });
 
     wrapper.append(grid);
@@ -163,11 +185,21 @@ function renderPage() {
 
 function applyFilter(value) {
   const query = normalize(value).trim();
+  const tokens = getTokens(query);
   let visible = 0;
   const sectionCounts = new Map();
 
   state.cards.forEach(({ card, section }) => {
-    const matches = !query || card.dataset.search.includes(query);
+    const keywords = (card.dataset.keywords || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    let matches = tokens.length === 0;
+    if (!matches) {
+      matches = tokens.every((token) => card.dataset.search.includes(token));
+    }
+    if (!matches && tokens.length > 0 && keywords.length > 0) {
+      matches = keywords.includes(tokens[0]);
+    }
     card.classList.toggle("is-hidden", !matches);
     if (matches) visible += 1;
     const count = sectionCounts.get(section) || 0;
@@ -186,6 +218,43 @@ function applyFilter(value) {
 
   elements.empty.hidden = visible !== 0;
   elements.count.textContent = `${visible} result${visible === 1 ? "" : "s"}`;
+}
+
+function buildSearchUrl(item, query) {
+  const searchUrl = item.searchUrl || item.search_url;
+  if (searchUrl && query) {
+    return searchUrl.replace("%s", encodeURIComponent(query));
+  }
+  return item.url || "";
+}
+
+function findItemByKeyword(keyword) {
+  const target = normalize(keyword);
+  if (!target) return null;
+  const matches = state.cards
+    .map(({ item }) => item)
+    .filter((item) => getItemKeywords(item).includes(target));
+  if (matches.length === 1) return matches[0];
+  return null;
+}
+
+function resolveCommandTarget(query) {
+  const tokens = getTokens(query);
+  if (!tokens.length) return "";
+  const directItem = findItemByKeyword(tokens[0]);
+  if (directItem) {
+    const remainder = tokens.slice(1).join(" ");
+    return buildSearchUrl(directItem, remainder);
+  }
+
+  const visibleCards = state.cards.filter(
+    ({ card }) => !card.classList.contains("is-hidden")
+  );
+  if (visibleCards.length === 1) {
+    const only = visibleCards[0].item;
+    return buildSearchUrl(only, "");
+  }
+  return "";
 }
 
 function getFocusableCards() {
@@ -379,12 +448,10 @@ function wireEvents() {
       return;
     }
     if (event.key === "Enter") {
-      let focusable = getFocusableCards();
-      if (!focusable.length) {
-        ensureFirstSectionExpanded();
-        focusable = getFocusableCards();
+      const target = resolveCommandTarget(elements.search.value);
+      if (target) {
+        window.location.assign(target);
       }
-      if (focusable.length) focusable[0].click();
     }
   });
 
@@ -444,4 +511,17 @@ function wireEvents() {
 }
 
 wireEvents();
-fetchConfig().then(() => focusSearch());
+fetchConfig().then(() => {
+  const params = new URLSearchParams(window.location.search);
+  const initial = params.get("q");
+  if (initial) {
+    elements.search.value = initial;
+    applyFilter(initial);
+    const target = resolveCommandTarget(initial);
+    if (target) {
+      window.location.replace(target);
+      return;
+    }
+  }
+  focusSearch();
+});
