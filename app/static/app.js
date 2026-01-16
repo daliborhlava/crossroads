@@ -45,6 +45,20 @@ function getItemKeywords(item) {
   return [];
 }
 
+function getItemAliases(item) {
+  const raw = item.aliases ?? item.alias;
+  if (Array.isArray(raw)) {
+    return raw.map((entry) => normalize(entry)).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw
+      .split(/[, ]+/)
+      .map((entry) => normalize(entry))
+      .filter(Boolean);
+  }
+  return [];
+}
+
 async function fetchConfig() {
   const response = await fetch("/api/config");
   state.config = await response.json();
@@ -137,8 +151,16 @@ function renderPage() {
       card.rel = "noreferrer";
       card.title = item.url || "";
       const keywords = getItemKeywords(item);
+      const aliases = getItemAliases(item);
       card.dataset.keywords = keywords.join(" ");
-      card.dataset.search = [item.title, item.url, item.description, keywords.join(" ")]
+      card.dataset.aliases = aliases.join(" ");
+      card.dataset.search = [
+        item.title,
+        item.url,
+        item.description,
+        keywords.join(" "),
+        aliases.join(" "),
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -188,12 +210,18 @@ function applyFilter(value) {
     const keywords = (card.dataset.keywords || "")
       .split(/\s+/)
       .filter(Boolean);
+    const aliases = (card.dataset.aliases || "")
+      .split(/\s+/)
+      .filter(Boolean);
     let matches = tokens.length === 0;
     if (!matches) {
       matches = tokens.every((token) => card.dataset.search.includes(token));
     }
     if (!matches && tokens.length > 0 && keywords.length > 0) {
       matches = keywords.includes(tokens[0]);
+    }
+    if (!matches && tokens.length > 0 && aliases.length > 0) {
+      matches = aliases.includes(tokens[0]);
     }
     card.classList.toggle("is-hidden", !matches);
     if (matches) visible += 1;

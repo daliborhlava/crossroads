@@ -43,6 +43,14 @@ def get_keywords(item: dict) -> list[str]:
         return [str(entry) for entry in raw if str(entry).strip()]
     return []
 
+def get_aliases(item: dict) -> list[str]:
+    raw = item.get("aliases") or item.get("alias")
+    if isinstance(raw, str):
+        return [entry for entry in raw.replace(",", " ").split() if entry]
+    if isinstance(raw, list):
+        return [str(entry) for entry in raw if str(entry).strip()]
+    return []
+
 
 def build_search_url(item: dict, query: str) -> str:
     search_url = item.get("searchUrl") or item.get("search_url")
@@ -71,6 +79,7 @@ def match_items(items: list[dict], query: str) -> list[dict]:
                 str(item.get("url", "")),
                 str(item.get("description", "")),
                 " ".join(get_keywords(item)),
+                " ".join(get_aliases(item)),
             ]
         ).lower()
         if all(token in haystack for token in tokens):
