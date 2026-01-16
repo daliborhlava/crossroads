@@ -87,8 +87,8 @@ def match_items(items: list[dict], query: str) -> list[dict]:
     return matches
 
 
-@app.get("/")
-def index(q: str | None = None) -> FileResponse | RedirectResponse:
+@app.get("/", response_model=None)
+def index(q: str | None = None):
     if q:
         query = q.strip()
         if query:
