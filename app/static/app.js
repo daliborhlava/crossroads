@@ -2,7 +2,7 @@ const state = {
   config: null,
   cards: [],
   filteredCards: [],
-  sections: [],
+  groups: new Map(),
   monaco: null,
   monacoReady: false,
   monacoLoading: null,
@@ -53,43 +53,33 @@ async function fetchConfig() {
   renderPage();
 }
 
-const COLLAPSE_KEY = "crossroads:collapsed";
-
-function getCollapsedState() {
-  try {
-    return JSON.parse(localStorage.getItem(COLLAPSE_KEY)) || {};
-  } catch (error) {
-    return {};
-  }
+function isSectionCollapsed() {
+  return true;
 }
 
-function setCollapsedState(nextState) {
-  localStorage.setItem(COLLAPSE_KEY, JSON.stringify(nextState));
-}
-
-function isSectionCollapsed(name) {
-  const stateMap = getCollapsedState();
-  if (!(name in stateMap)) return true;
-  return Boolean(stateMap[name]);
-}
-
-function updateSectionCollapsed(name, collapsed) {
-  const stateMap = getCollapsedState();
-  stateMap[name] = collapsed;
-  setCollapsedState(stateMap);
-}
-
-function setSectionCollapsed(wrapper, collapsed) {
-  wrapper.classList.toggle("section--collapsed", collapsed);
-  const toggle = wrapper.querySelector(".section__toggle");
-  const icon = toggle?.querySelector("i");
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", (!collapsed).toString());
-    toggle.title = collapsed ? "Expand section" : "Collapse section";
-  }
+function setGroupCollapsed(name, collapsed) {
+  const group = state.groups.get(name);
+  if (!group) return;
+  group.collapsed = collapsed;
+  group.chip.setAttribute("aria-expanded", (!collapsed).toString());
+  group.chip.classList.toggle("is-collapsed", collapsed);
+  group.chip.title = collapsed ? "Expand group" : "Collapse group";
+  group.itemsWrap.classList.toggle("is-collapsed", collapsed);
+  const icon = group.chip.querySelector(".group-chip__chevron i");
   if (icon) {
     icon.className = collapsed ? "mdi mdi-chevron-down" : "mdi mdi-chevron-up";
   }
+  group.items.forEach((card) => {
+    card.classList.toggle("is-collapsed", collapsed);
+  });
+}
+
+function collapseOtherGroups(activeName) {
+  state.groups.forEach((group, name) => {
+    if (name !== activeName && !group.collapsed) {
+      setGroupCollapsed(name, true);
+    }
+  });
 }
 
 function renderPage() {
@@ -100,41 +90,61 @@ function renderPage() {
 
   elements.sections.innerHTML = "";
   state.cards = [];
-  state.sections = [];
+  state.groups = new Map();
 
-  sections.forEach((section, sectionIndex) => {
-    const wrapper = document.createElement("section");
-    wrapper.className = "section";
-    wrapper.dataset.section = section.name || "";
+  sections.forEach((section) => {
+    const name = section.name || "Untitled";
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "group-chip";
+    chip.dataset.section = name;
 
-    const header = document.createElement("div");
-    header.className = "section__header";
+    const chipIcon = document.createElement("span");
+    chipIcon.className = "group-chip__icon";
+    const chipIconInner = document.createElement("i");
+    chipIconInner.className = `mdi ${section.icon || "mdi-atom"}`;
+    chipIcon.append(chipIconInner);
 
-    const icon = document.createElement("i");
-    icon.className = `mdi ${section.icon || "mdi-atom"} section__icon`;
+    const chipName = document.createElement("span");
+    chipName.className = "group-chip__name";
+    chipName.textContent = name;
 
-    const titleEl = document.createElement("h2");
-    titleEl.textContent = section.name || "Untitled";
+    const chipCount = document.createElement("span");
+    chipCount.className = "group-chip__count";
 
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.className = "section__toggle";
-    toggle.innerHTML = "<i class=\"mdi mdi-chevron-down\"></i>";
-    toggle.addEventListener("click", () => {
-      const collapsed = !wrapper.classList.contains("section--collapsed");
-      setSectionCollapsed(wrapper, collapsed);
-      updateSectionCollapsed(section.name || "", collapsed);
+    const chipChevron = document.createElement("span");
+    chipChevron.className = "group-chip__chevron";
+    chipChevron.innerHTML = "<i class=\"mdi mdi-chevron-down\"></i>";
+
+    chip.append(chipIcon, chipName, chipCount, chipChevron);
+    elements.sections.append(chip);
+
+    const itemsWrap = document.createElement("div");
+    itemsWrap.className = "group-items";
+    itemsWrap.dataset.section = name;
+
+    const group = {
+      name,
+      chip,
+      countEl: chipCount,
+      items: [],
+      total: (section.items || []).length,
+      collapsed: true,
+      itemsWrap,
+    };
+    state.groups.set(name, group);
+
+    chip.addEventListener("click", () => {
+      const nextCollapsed = !group.collapsed;
+      setGroupCollapsed(name, nextCollapsed);
+      if (!nextCollapsed) {
+        collapseOtherGroups(name);
+      }
     });
-
-    header.append(icon, titleEl, toggle);
-    wrapper.append(header);
-
-    const grid = document.createElement("div");
-    grid.className = "section__grid";
 
     (section.items || []).forEach((item, index) => {
       const card = document.createElement("a");
-      card.className = "card";
+      card.className = "card card--item";
       card.href = item.url || "#";
       card.target = "_blank";
       card.rel = "noreferrer";
@@ -167,17 +177,15 @@ function renderPage() {
 
       card.append(iconWrap, textWrap);
       card.style.animationDelay = `${Math.min(index * 0.03, 0.4)}s`;
-      grid.append(card);
-      state.cards.push({ card, section: wrapper, item });
+      card.dataset.group = name;
+      itemsWrap.append(card);
+      group.items.push(card);
+      state.cards.push({ card, group: name, item });
     });
 
-    wrapper.append(grid);
-    wrapper.style.animationDelay = `${Math.min(sectionIndex * 0.05, 0.4)}s`;
-    elements.sections.append(wrapper);
-    state.sections.push({ name: section.name || "", wrapper });
-
-    const collapsed = isSectionCollapsed(section.name || "");
-    setSectionCollapsed(wrapper, collapsed);
+    elements.sections.append(itemsWrap);
+    const collapsed = isSectionCollapsed();
+    setGroupCollapsed(name, collapsed);
   });
 
   applyFilter("");
@@ -187,9 +195,9 @@ function applyFilter(value) {
   const query = normalize(value).trim();
   const tokens = getTokens(query);
   let visible = 0;
-  const sectionCounts = new Map();
+  const groupCounts = new Map();
 
-  state.cards.forEach(({ card, section }) => {
+  state.cards.forEach(({ card, group }) => {
     const keywords = (card.dataset.keywords || "")
       .split(/\s+/)
       .filter(Boolean);
@@ -202,17 +210,28 @@ function applyFilter(value) {
     }
     card.classList.toggle("is-hidden", !matches);
     if (matches) visible += 1;
-    const count = sectionCounts.get(section) || 0;
-    sectionCounts.set(section, count + (matches ? 1 : 0));
+    const count = groupCounts.get(group) || 0;
+    groupCounts.set(group, count + (matches ? 1 : 0));
   });
 
-  sectionCounts.forEach((count, section) => {
-    section.hidden = count === 0;
+  state.groups.forEach((group, name) => {
+    const count = groupCounts.get(name) || 0;
     if (query) {
-      setSectionCollapsed(section, false);
+      group.chip.hidden = count === 0;
+      group.itemsWrap.hidden = count === 0;
+      group.items.forEach((card) => {
+        if (!card.classList.contains("is-hidden")) {
+          card.classList.remove("is-collapsed");
+        }
+      });
+      group.countEl.textContent = group.total
+        ? `${count}/${group.total}`
+        : "0";
     } else {
-      const name = section.dataset.section || "";
-      setSectionCollapsed(section, isSectionCollapsed(name));
+      group.chip.hidden = false;
+      setGroupCollapsed(name, group.collapsed);
+      group.itemsWrap.hidden = false;
+      group.countEl.textContent = `${group.total} item${group.total === 1 ? "" : "s"}`;
     }
   });
 
@@ -260,26 +279,22 @@ function resolveCommandTarget(query) {
 function getFocusableCards() {
   return state.cards
     .filter(
-      ({ card, section }) =>
+      ({ card }) =>
         !card.classList.contains("is-hidden") &&
-        !section.classList.contains("section--collapsed")
+        !card.classList.contains("is-collapsed")
     )
     .map(({ card }) => card);
 }
 
-function ensureFirstSectionExpanded() {
-  const candidate = state.sections.find(({ wrapper }) => {
-    if (wrapper.hidden || wrapper.classList.contains("section--collapsed")) {
-      const hasVisibleCard = [...wrapper.querySelectorAll(".card")].some(
-        (card) => !card.classList.contains("is-hidden")
-      );
-      return hasVisibleCard;
+function ensureFirstGroupExpanded() {
+  for (const group of state.groups.values()) {
+    const hasVisible = group.items.some(
+      (card) => !card.classList.contains("is-hidden")
+    );
+    if (hasVisible && group.collapsed) {
+      setGroupCollapsed(group.name, false);
+      return;
     }
-    return false;
-  });
-  if (candidate) {
-    setSectionCollapsed(candidate.wrapper, false);
-    updateSectionCollapsed(candidate.name, false);
   }
 }
 
@@ -418,7 +433,7 @@ function wireEvents() {
       ) {
         let focusable = getFocusableCards();
         if (!focusable.length) {
-          ensureFirstSectionExpanded();
+          ensureFirstGroupExpanded();
           focusable = getFocusableCards();
         }
         if (focusable.length) {
@@ -438,7 +453,7 @@ function wireEvents() {
     if (event.key === "Tab" || event.code === "Tab") {
       let focusable = getFocusableCards();
       if (!focusable.length) {
-        ensureFirstSectionExpanded();
+        ensureFirstGroupExpanded();
         focusable = getFocusableCards();
       }
       if (focusable.length) {
